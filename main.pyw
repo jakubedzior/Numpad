@@ -1,8 +1,8 @@
 from pynput.keyboard import Controller, Listener, Key
+from pid import PidFile
 
 
 class Power():
-
     def __init__(self):
         self.state = False
         self.skip = False
@@ -14,7 +14,7 @@ class Power():
             self.state = True
 
 
-def num_pad(key):
+def numPad(key):
     if key.char in chars:
         if key.char == chars[0]:
             power.skip = True
@@ -35,24 +35,34 @@ def num_pad(key):
 
 def on_press(key):
     try:
-        if power.state:
-            num_pad(key)
-        if key.char == '$':
-            keyboard.press(Key.backspace)
-            power.change()
-
+        current.add(key.value.vk)
     except AttributeError:
+        current.add(key.vk)
+
+    if all(k in current for k in key_comb):
+        power.change()
+        return
+
+    if power.state:
+        try:
+            numPad(key)
+        except AttributeError:
+            pass
+
+def on_release(key):
+    try:
+        current.remove(key.value.vk)
+    except AttributeError:
+        current.remove(key.vk)
+    except KeyError:
         pass
 
+with PidFile():
+    key_comb = [162, 165, 48]
+    current = set()
+    power = Power()
+    chars = ['/', ';', '\'', '\\', 'p', '[', ']', '0', '-', '=']
+    keyboard = Controller()
 
-with open('state.txt', 'w+') as f:
-    if f.read() == 'True':
-        exit()
-    f.write('True')
-
-power = Power()
-chars = ['/', ';', '\'', '\\', 'p', '[', ']', '0', '-', '=']
-
-keyboard = Controller()
-with Listener(on_press=on_press) as listener:
-    listener.join()
+    with Listener(on_press=on_press, on_release=on_release) as listener:
+        listener.join()
